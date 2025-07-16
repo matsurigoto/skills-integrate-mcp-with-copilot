@@ -3,6 +3,15 @@ document.addEventListener("DOMContentLoaded", () => {
   const activitySelect = document.getElementById("activity");
   const signupForm = document.getElementById("signup-form");
   const messageDiv = document.getElementById("message");
+  const adminLoginBtn = document.getElementById("admin-login-btn");
+  const adminModal = document.getElementById("admin-modal");
+  const adminForm = document.getElementById("admin-form");
+  const closeModal = document.querySelector(".close");
+  const adminStatus = document.getElementById("admin-status");
+
+  // Admin state
+  let isAdmin = false;
+  let adminToken = null;
 
   // Function to fetch activities from API
   async function fetchActivities() {
@@ -21,7 +30,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const spotsLeft =
           details.max_participants - details.participants.length;
 
-        // Create participants HTML with delete icons instead of bullet points
+        // Create participants HTML with delete icons
         const participantsHTML =
           details.participants.length > 0
             ? `<div class="participants-section">
@@ -30,7 +39,13 @@ document.addEventListener("DOMContentLoaded", () => {
                 ${details.participants
                   .map(
                     (email) =>
-                      `<li><span class="participant-email">${email}</span><button class="delete-btn" data-activity="${name}" data-email="${email}">❌</button></li>`
+                      `<li>
+                        <span class="participant-email">${email}</span>
+                        ${isAdmin ? 
+                          `<button class="delete-btn admin-delete" data-activity="${name}" data-email="${email}">🗑️ Admin Remove</button>` :
+                          `<button class="delete-btn self-delete" data-activity="${name}" data-email="${email}">❌ Remove Me</button>`
+                        }
+                      </li>`
                   )
                   .join("")}
               </ul>
@@ -73,15 +88,31 @@ document.addEventListener("DOMContentLoaded", () => {
     const activity = button.getAttribute("data-activity");
     const email = button.getAttribute("data-email");
 
+    // Get current user email for self-removal
+    const currentUserEmail = document.getElementById("email").value;
+    
     try {
-      const response = await fetch(
-        `/activities/${encodeURIComponent(
-          activity
-        )}/unregister?email=${encodeURIComponent(email)}`,
-        {
-          method: "DELETE",
-        }
-      );
+      const headers = {
+        'Content-Type': 'application/json'
+      };
+      
+      // Add admin authorization if user is admin
+      if (isAdmin && adminToken) {
+        headers['Authorization'] = `Bearer ${adminToken}`;
+      }
+
+      const url = new URL(`/activities/${encodeURIComponent(activity)}/unregister`, window.location.origin);
+      url.searchParams.set('email', email);
+      
+      // For non-admin users, add student_email parameter for self-removal
+      if (!isAdmin) {
+        url.searchParams.set('student_email', currentUserEmail);
+      }
+
+      const response = await fetch(url, {
+        method: "DELETE",
+        headers: headers
+      });
 
       const result = await response.json();
 
@@ -152,6 +183,79 @@ document.addEventListener("DOMContentLoaded", () => {
       messageDiv.className = "error";
       messageDiv.classList.remove("hidden");
       console.error("Error signing up:", error);
+    }
+  });
+
+  // Admin login functionality
+  adminLoginBtn.addEventListener("click", () => {
+    adminModal.style.display = "block";
+  });
+
+  closeModal.addEventListener("click", () => {
+    adminModal.style.display = "none";
+  });
+
+  window.addEventListener("click", (event) => {
+    if (event.target === adminModal) {
+      adminModal.style.display = "none";
+    }
+  });
+
+  adminForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const password = document.getElementById("admin-password").value;
+
+    try {
+      const response = await fetch(`/admin/login?password=${encodeURIComponent(password)}`, {
+        method: "POST"
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        isAdmin = true;
+        adminToken = password;
+        adminStatus.textContent = "Admin Mode: ON";
+        adminStatus.className = "admin-active";
+        adminLoginBtn.textContent = "Logout Admin";
+        adminModal.style.display = "none";
+        
+        // Refresh activities to show admin controls
+        fetchActivities();
+        
+        messageDiv.textContent = "Admin login successful!";
+        messageDiv.className = "success";
+        messageDiv.classList.remove("hidden");
+      } else {
+        messageDiv.textContent = result.detail || "Invalid admin password";
+        messageDiv.className = "error";
+        messageDiv.classList.remove("hidden");
+      }
+
+      setTimeout(() => {
+        messageDiv.classList.add("hidden");
+      }, 3000);
+    } catch (error) {
+      messageDiv.textContent = "Admin login failed. Please try again.";
+      messageDiv.className = "error";
+      messageDiv.classList.remove("hidden");
+      console.error("Error during admin login:", error);
+    }
+  });
+
+  // Toggle admin mode
+  adminLoginBtn.addEventListener("click", () => {
+    if (isAdmin) {
+      // Logout
+      isAdmin = false;
+      adminToken = null;
+      adminStatus.textContent = "Admin Mode: OFF";
+      adminStatus.className = "";
+      adminLoginBtn.textContent = "Admin Login";
+      fetchActivities(); // Refresh to hide admin controls
+    } else {
+      // Show login modal
+      adminModal.style.display = "block";
     }
   });
 

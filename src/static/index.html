@@ -7,10 +7,14 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <header>
-      <h1>Mergington High School</h1>
-      <h2>Extracurricular Activities</h2>
-    </header>
+  <header>
+    <h1>Mergington High School</h1>
+    <h2>Extracurricular Activities</h2>
+    <div class="admin-controls">
+      <span id="admin-status">Admin Mode: OFF</span>
+      <button id="admin-login-btn">Admin Login</button>
+    </div>
+  </header>
 
     <main>
       <section id="activities-container">
@@ -44,6 +48,21 @@
     <footer>
       <p>&copy; 2023 Mergington High School</p>
     </footer>
+
+    <!-- Admin Login Modal -->
+    <div id="admin-modal" class="modal">
+      <div class="modal-content">
+        <span class="close">&times;</span>
+        <h3>Admin Login</h3>
+        <form id="admin-form">
+          <div class="form-group">
+            <label for="admin-password">Admin Password:</label>
+            <input type="password" id="admin-password" required />
+          </div>
+          <button type="submit">Login as Admin</button>
+        </form>
+      </div>
+    </div>
 
     <script src="app.js"></script>
   </body>
