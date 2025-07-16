@@ -5,9 +5,10 @@ A super simple FastAPI application that allows students to view and sign up
 for extracurricular activities at Mergington High School.
 """
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Header
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse
+from typing import Optional
 import os
 from pathlib import Path
 
@@ -18,6 +19,9 @@ app = FastAPI(title="Mergington High School API",
 current_dir = Path(__file__).parent
 app.mount("/static", StaticFiles(directory=os.path.join(Path(__file__).parent,
           "static")), name="static")
+
+# Admin credentials (in a real app, this would be in a secure database)
+ADMIN_PASSWORD = "admin123"  # Simple password for demo purposes
 
 # In-memory activity database
 activities = {
@@ -74,6 +78,12 @@ activities = {
         "schedule": "Fridays, 4:00 PM - 5:30 PM",
         "max_participants": 12,
         "participants": ["charlotte@mergington.edu", "henry@mergington.edu"]
+    },
+    "GitHub Skills": {
+        "description": "Learn GitHub workflows, version control, and collaborative coding",
+        "schedule": "Wednesdays, 3:30 PM - 4:30 PM",
+        "max_participants": 25,
+        "participants": ["alex@mergington.edu", "jamie@mergington.edu"]
     }
 }
 
@@ -81,6 +91,20 @@ activities = {
 @app.get("/")
 def root():
     return RedirectResponse(url="/static/index.html")
+
+
+@app.post("/admin/login")
+def admin_login(password: str):
+    """Admin login endpoint"""
+    if password == ADMIN_PASSWORD:
+        return {"message": "Admin login successful", "admin": True}
+    else:
+        raise HTTPException(status_code=401, detail="Invalid admin password")
+
+
+def is_admin(authorization: Optional[str] = Header(None)) -> bool:
+    """Check if the request has valid admin authorization"""
+    return authorization == f"Bearer {ADMIN_PASSWORD}"
 
 
 @app.get("/activities")
@@ -111,7 +135,12 @@ def signup_for_activity(activity_name: str, email: str):
 
 
 @app.delete("/activities/{activity_name}/unregister")
-def unregister_from_activity(activity_name: str, email: str):
+def unregister_from_activity(
+    activity_name: str, 
+    email: str, 
+    student_email: Optional[str] = None,
+    authorization: Optional[str] = Header(None)
+):
     """Unregister a student from an activity"""
     # Validate activity exists
     if activity_name not in activities:
@@ -125,6 +154,16 @@ def unregister_from_activity(activity_name: str, email: str):
         raise HTTPException(
             status_code=400,
             detail="Student is not signed up for this activity"
+        )
+
+    # Check authorization: either admin or the student themselves
+    admin_access = is_admin(authorization)
+    student_access = student_email == email  # Student can only remove themselves
+    
+    if not admin_access and not student_access:
+        raise HTTPException(
+            status_code=403,
+            detail="Unauthorized: Only admins or the student themselves can unregister"
         )
 
     # Remove student
